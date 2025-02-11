@@ -19,51 +19,6 @@ from lmfit import Model
 
 
 
-# ------- ETA analysis ----------
-def load_eta(recipe, **kwargs):
-    print('Loading ETA')
-    with open(recipe, 'r') as filehandle:
-        recipe_obj = json.load(filehandle)
-
-    eta_engine = eta.ETA()
-    eta_engine.load_recipe(recipe_obj)
-
-    # Set parameters in the recipe
-    for arg in kwargs:
-        eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
-
-    eta_engine.load_recipe()
-
-    return eta_engine
-
-def eta_analysis(file, eta_engine):
-    print('Starting ETA analysis')
-    cut = eta_engine.clips(Path(file), format=1)
-    result = eta_engine.run({"timetagger1": cut}, group='quTAG')
-    print('Finished ETA analysis')
-
-    return result
-
-def second_correleation(timetag_file, eta_engine, bins, binsisize):
-    # ETA analys
-    result = eta_analysis(timetag_file, eta_engine)
-
-    # extract result
-    hist1 = result["h3"]
-    hist2 = result["h4"]
-    hist0 = result["h4_zero"]
-    hist1[0] += hist0[0]
-
-    coin = np.concatenate((hist2[::-1], hist1))
-
-    delta_t = np.arange(-bins, bins) * binsize
-
-    g2 = coin / np.mean(coin)
-
-    print(f'Peak coincidence: {np.max(coin)} \nTotal detected photon pairs: {np.sum(coin)}\n Noise lvl: {np.mean(coin)}\n')
-
-    return coin, g2, delta_t
-
 #---- Curve fit ----
 def siegert(t, amp, center, tc):
     r = 1 + amp*(np.e**(-np.abs((t-center))/tc))**2
@@ -132,22 +87,17 @@ def lm_curve_fit_mod_siegert(xdata, ydata):
     return result.best_fit
 
 
-eta_recipe = 'Correlation-swabian.eta'
-
-#ETA Settings
-binsize = 20
-bins = 3500
-time_axis = np.arange(0,bins)*binsize
-delay = 130
-eta_engine = load_eta(eta_recipe, bins=bins, binsize=binsize, bw_delay = delay)
 
 
 #Data files
-timetag_file1 = 'single_0_delay_det2_16.35uA_det1_13uA_40s_241030.timeres' 
-timetag_file2 = 'multi_0_delay_det2_16.35uA_det1_13uA_20s_241030.timeres'  
+file1 = 'single_0_delay_det2_16.35uA_det1_13uA_40s_241030.txt'
+file2 = 'multi_0_delay_det2_16.35uA_det1_13uA_20s_241030.txt'
 
-coin_1, g2_1, DT_1 = second_correleation(timetag_file1, eta_engine,bins, binsize)
-coin_2, g2_2, DT_2 = second_correleation(timetag_file2, eta_engine,bins, binsize)
+DT_1, coin_1 = np.loadtxt(file1, unpack = True)
+g2_1 = coin_1/np.mean(coin_1)
+
+DT_2, coin_2 = np.loadtxt(file2, unpack=True)
+g2_2 = coin_2/np.mean(coin_2)
 
 #Curve fit
 curve = lm_curve_fit_siegert(DT_1, g2_1)
